@@ -13,7 +13,7 @@ def main() -> None:
         help="Prompt to generate"
     )
     parser.add_argument("--model", default="gpt-4.1-mini", help="Responses model")
-    parser.add_argument("--image-model", default="gpt-image-2", help="Image generation model")
+    parser.add_argument("--image-model", default="gpt-image-1.5", help="Image generation model")
     parser.add_argument("--out", default="generated.png", help="Output image path")
     args = parser.parse_args()
 

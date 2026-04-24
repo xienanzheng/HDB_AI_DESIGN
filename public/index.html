@@ -55,27 +55,19 @@
 
           <div class="control-section">
             <h3>Essentials</h3>
-            <div class="grid-2">
-              <label class="field">
-                <span>Style</span>
-                <select id="styleInput">
-                  <option selected>Japandi</option>
-                  <option>Scandinavian</option>
-                  <option>Modern Minimalist</option>
-                  <option>Contemporary Luxury</option>
-                  <option>Mid-Century Modern</option>
-                  <option>Wabi-Sabi</option>
-                  <option>Warm Neutral</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Images</span>
-                <select id="viewCountSelect">
-                  <option value="4">4</option>
-                  <option value="5" selected>5</option>
-                </select>
-              </label>
-            </div>
+            <label class="field">
+              <span>Style</span>
+              <select id="styleInput">
+                <option selected>Japandi</option>
+                <option>Scandinavian</option>
+                <option>Modern Minimalist</option>
+                <option>Contemporary Luxury</option>
+                <option>Mid-Century Modern</option>
+                <option>Wabi-Sabi</option>
+                <option>Warm Neutral</option>
+              </select>
+            </label>
+            <p class="hint">The app produces 2 images: a dimensioned 2D plan and a 3D rendered view.</p>
           </div>
 
           <div class="control-section">
@@ -91,19 +83,10 @@
             <summary>Model settings</summary>
             <div class="grid-2">
               <label class="field">
-                <span>Image</span>
-                <select id="modelSelect">
-                  <option value="gpt-image-2" selected>gpt-image-2</option>
-                  <option value="gpt-image-1.5">gpt-image-1.5</option>
-                  <option value="gpt-image-1">gpt-image-1</option>
-                  <option value="gpt-image-1-mini">gpt-image-1-mini</option>
-                </select>
-              </label>
-              <label class="field">
                 <span>Quality</span>
                 <select id="qualitySelect">
-                  <option value="high" selected>high</option>
-                  <option value="medium">medium</option>
+                  <option value="medium" selected>medium</option>
+                  <option value="high">high</option>
                   <option value="low">low</option>
                   <option value="auto">auto</option>
                 </select>

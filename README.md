@@ -8,12 +8,12 @@ A private interior-design copilot for floorplan rendering and selected-area edit
 - Click an image to make it active.
 - Drag a rectangular region on the canvas to mark the exact area to replace.
 - Write one prompt. Put constraints, needs, and avoids directly in that prompt.
-- Generate a design set from the uploaded plan: top-down 2D layout, side/elevation 2D, whole-unit 3D, and perspective 3D renders.
+- Generate a design set from the uploaded plan: one dimensioned 2D layout and one 3D rendered view.
 - Edit a selected area using the same prompt-first workflow.
 - Use a compact prompt/RAG layer that injects structural-preservation, dimension-fidelity, and fixture-dimension rules into every request.
 - Temporarily restore the latest browser session with IndexedDB storage for the active plan, prompt, and generated outputs.
 - Preserve structural columns, load-bearing walls, beams, shafts, windows, plumbing stacks, and AC ledge boundaries in every prompt.
-- Generate selected-area edits with the Image API edits endpoint and a transparent mask (default model: `gpt-image-2`, fallback: `gpt-image-1.5` if unavailable).
+- Generate floorplan-based images and selected-area edits with the Image API edits endpoint (default model: `gpt-image-1.5`).
 - Promote an output image as the new base image and continue iterating.
 
 ## Setup
@@ -23,6 +23,8 @@ A private interior-design copilot for floorplan rendering and selected-area edit
 
 ```bash
 OPENAI_API_KEY=sk-...
+# Optional only if OpenRouter planner support is added later.
+OPENROUTER_API_KEY=sk-or-...
 PORT=3000
 HOST=127.0.0.1
 ```
@@ -46,7 +48,7 @@ vercel env add OPENAI_API_KEY
 vercel --prod
 ```
 
-If you connect the repo through the Vercel dashboard, set `OPENAI_API_KEY` in Project Settings -> Environment Variables. Vercel will serve `public/index.html` and the API routes in `api/`.
+If you connect the repo through the Vercel dashboard, set `OPENAI_API_KEY` in Project Settings -> Environment Variables. If you later enable OpenRouter planning, also set `OPENROUTER_API_KEY` there. Vercel will serve `public/index.html` and the API routes in `api/`.
 
 Large floorplan screenshots can exceed hosted function body limits. If Vercel rejects a large upload, downscale/compress the image before sending it to the API.
 
@@ -58,7 +60,7 @@ If you also want the exact Python-style flow, use:
 python3 scripts/responses_image_generate.py \
   --prompt "Generate an image of gray tabby cat hugging an otter with an orange scarf" \
   --model gpt-4.1-mini \
-  --image-model gpt-image-2 \
+  --image-model gpt-image-1.5 \
   --out cat_and_otter.png
 ```
 
@@ -67,9 +69,9 @@ python3 scripts/responses_image_generate.py \
 - Mask behavior: the selected region is made transparent in the mask, so only that area is edited.
 - This version uses rectangular selections for speed and reliability.
 - Supported upload formats: PNG, JPG, WEBP.
-- `gpt-image-2` is used by default for edits and generation when available on your API account.
-- If the API rejects `gpt-image-2`, the server retries once with `gpt-image-1.5` to keep generation working.
+- `gpt-image-1.5` is used by default because it is the current GPT Image model documented for the Image API.
 - Image size is set to `1024x1024` by default to avoid invalid image tool size errors.
+- OpenRouter is not required for image generation in the current app. Add `OPENROUTER_API_KEY` locally and in Vercel only if we add an OpenRouter-powered text/vision planning step.
 
 ## API route
 
@@ -79,8 +81,8 @@ python3 scripts/responses_image_generate.py \
   - Returns: `{ editedImageDataUrl, revisedPrompt, requestId }`
 
 - `POST /api/generate`
-  - Body: `prompt`, optional `imageDataUrl`, `model`, `imageModel`, `quality`, `size`
-  - Uses Responses API with `tools: [{ type: "image_generation" }]`
+  - Body: `prompt`, optional `imageDataUrl`, `imageModel`, `quality`, `size`
+  - Uses Image API edits when an uploaded floorplan image is provided, otherwise Image API generations
   - Returns: `{ generatedImageDataUrl, revisedPrompt, requestId }`
 
 - `POST /api/id-assist`

@@ -5,8 +5,6 @@ const editorCanvas = document.getElementById("editorCanvas");
 const selectionMeta = document.getElementById("selectionMeta");
 const promptInput = document.getElementById("promptInput");
 const styleInput = document.getElementById("styleInput");
-const viewCountSelect = document.getElementById("viewCountSelect");
-const modelSelect = document.getElementById("modelSelect");
 const qualitySelect = document.getElementById("qualitySelect");
 const sizeSelect = document.getElementById("sizeSelect");
 const runEditBtn = document.getElementById("runEditBtn");
@@ -20,7 +18,7 @@ const resultPreview = document.getElementById("resultPreview");
 const resultGallery = document.getElementById("resultGallery");
 
 const ctx = editorCanvas.getContext("2d");
-const TEXT_MODEL = "gpt-4.1-mini";
+const IMAGE_MODEL = "gpt-image-1.5";
 const DEFAULT_IMAGE_SIZE = "1024x1024";
 const TEMP_DB_NAME = "xies-id-temp-store";
 const TEMP_DB_VERSION = 1;
@@ -37,29 +35,14 @@ const DESIGN_RAG = {
     "RAG_SCOPE: only change loose furniture, built-ins, storage, finishes, lighting, styling, and non-structural partitions. Keep circulation practical and avoid blocking access paths.",
   views: [
     {
-      title: "Top-down 2D layout",
+      title: "2D layout plan",
       text:
-        "VIEW_TOPDOWN_2D: create a clean scaled top-down design layout over the plan. Show furniture, cabinetry, non-structural partitions, clear labels, and proposed dimensions."
+        "OUTPUT_1_2D_PLAN: create a clean, top-down, dimensioned 2D interior layout plan. Preserve the exact uploaded floorplan geometry. Add furniture, cabinetry, non-structural partitions, labels, and proposed fixture dimensions in mm."
     },
     {
-      title: "Side 2D elevation",
+      title: "3D rendered view",
       text:
-        "VIEW_SIDE_2D: create a side/elevation drawing for the most important wall or built-in run. Show cabinetry heights, depths, lighting positions, material callouts, and dimensions."
-    },
-    {
-      title: "3D whole-home render",
-      text:
-        "VIEW_3D_MAIN: create a polished 3D top-down/axonometric rendering of the whole unit so the layout and design language are easy to understand."
-    },
-    {
-      title: "3D living and dining view",
-      text:
-        "VIEW_3D_PUBLIC: create a realistic perspective rendering from the living/dining/foyer zone with materials, lighting, furniture, and built-ins."
-    },
-    {
-      title: "3D kitchen and bedroom detail",
-      text:
-        "VIEW_3D_DETAIL: create a realistic perspective rendering focusing on kitchen storage, bedroom storage, or the most design-critical detail."
+        "OUTPUT_2_3D_RENDER: create one polished 3D rendered perspective or axonometric view based on the same layout. Show materials, furniture, lighting, built-ins, and spatial atmosphere while preserving structural constraints."
     }
   ]
 };
@@ -94,10 +77,8 @@ useResultBtn.addEventListener("click", useResultAsBase);
 downloadBtn.addEventListener("click", downloadResult);
 promptInput.addEventListener("input", updatePromptPreview);
 styleInput.addEventListener("change", updatePromptPreview);
-viewCountSelect.addEventListener("change", updatePromptPreview);
 promptInput.addEventListener("input", scheduleTempSave);
 styleInput.addEventListener("change", saveTempSession);
-viewCountSelect.addEventListener("change", saveTempSession);
 
 function setStatus(text) {
   statusText.textContent = text;
@@ -363,7 +344,7 @@ async function runImageEdit() {
       imageDataUrl,
       maskDataUrl,
       prompt,
-      model: modelSelect.value,
+      imageModel: IMAGE_MODEL,
       quality: qualitySelect.value,
       size: getImageSize()
     };
@@ -420,7 +401,7 @@ async function runPromptGeneration() {
   }
 
   setBusy(true);
-  setStatus("Generating design set via Responses API...");
+  setStatus("Generating 2 design images...");
 
   try {
     const prompts = buildDesignSetPrompts(rawPrompt);
@@ -437,8 +418,7 @@ async function runPromptGeneration() {
         body: JSON.stringify({
           imageDataUrl: state.activeImageDataUrl,
           prompt: item.prompt,
-          model: TEXT_MODEL,
-          imageModel: modelSelect.value,
+          imageModel: IMAGE_MODEL,
           quality: qualitySelect.value,
           size: getImageSize()
         })
@@ -473,7 +453,7 @@ async function runPromptGeneration() {
     setStatus(
       outputs.length > 1
         ? `${outputs.length} images generated.`
-        : "Image generated (Responses API)."
+        : "Image generated."
     );
   } catch (error) {
     setStatus(`Error: ${error.message}`);
@@ -483,8 +463,7 @@ async function runPromptGeneration() {
 }
 
 function buildDesignSetPrompts(rawPrompt) {
-  const count = Number(viewCountSelect.value || 5);
-  return DESIGN_RAG.views.slice(0, count).map((view) => ({
+  return DESIGN_RAG.views.map((view) => ({
     title: view.title,
     prompt: buildDesignerPrompt(rawPrompt, { viewText: view.text })
   }));
@@ -517,7 +496,8 @@ function updatePromptPreview() {
   promptPreview.textContent = [
     imageNote,
     `Style: ${styleInput.value}`,
-    `Outputs: ${viewCountSelect.value} images`,
+    "Outputs: 2 images (2D layout + 3D render)",
+    "Model: GPT Image 1.5",
     "RAG layer: structural preservation + dimension fidelity + fixture dimension labels.",
     `Prompt: ${rawPrompt}`
   ].join("\n");
@@ -633,7 +613,6 @@ async function saveTempSession() {
       timestamp: Date.now(),
       prompt: promptInput.value,
       style: styleInput.value,
-      viewCount: viewCountSelect.value,
       activeImage,
       outputDataUrl: state.outputDataUrl,
       outputItems: state.outputItems
@@ -664,7 +643,6 @@ async function restoreTempSession() {
 
     promptInput.value = session.prompt || "";
     if (session.style) styleInput.value = session.style;
-    if (session.viewCount) viewCountSelect.value = session.viewCount;
 
     if (session.activeImage?.dataUrl) {
       state.images = [session.activeImage];
