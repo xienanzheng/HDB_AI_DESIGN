@@ -495,7 +495,7 @@ function updatePromptPreview() {
     imageNote,
     `Style: ${styleInput.value}`,
     "Outputs: 2 images (2D layout + 3D render)",
-    "Model: server image model (OPENAI_IMAGE_MODEL, default GPT Image 1.5)",
+    "Model: server image model (OPENAI_IMAGE_MODEL, default GPT Image 2)",
     "RAG layer: structural preservation + dimension fidelity + fixture dimension labels.",
     `Prompt: ${rawPrompt}`
   ].join("\n");
