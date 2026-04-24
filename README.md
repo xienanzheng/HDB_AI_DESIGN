@@ -7,7 +7,7 @@ A private interior-design copilot for floorplan rendering and selected-area edit
 - Upload one or more plan images.
 - Click an image to make it active.
 - Drag a rectangular region on the canvas to mark the exact area to replace.
-- Write one prompt. Put constraints, needs, and avoids directly in that prompt.
+- Edit the default prompt or replace it with your own. Put constraints, needs, and avoids directly in that prompt.
 - Generate a design set from the uploaded plan: one dimensioned 2D layout and one 3D rendered view.
 - Edit a selected area using the same prompt-first workflow.
 - Use a compact prompt/RAG layer that injects structural-preservation, dimension-fidelity, and fixture-dimension rules into every request.

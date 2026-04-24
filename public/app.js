@@ -20,6 +20,7 @@ const resultGallery = document.getElementById("resultGallery");
 const ctx = editorCanvas.getContext("2d");
 const IMAGE_MODEL = "gpt-image-1.5";
 const DEFAULT_IMAGE_SIZE = "1024x1024";
+const DEFAULT_USER_PROMPT = promptInput.value.trim();
 const TEMP_DB_NAME = "xies-id-temp-store";
 const TEMP_DB_VERSION = 1;
 const TEMP_STORE_NAME = "sessions";
@@ -641,7 +642,7 @@ async function restoreTempSession() {
       return;
     }
 
-    promptInput.value = session.prompt || "";
+    promptInput.value = session.prompt?.trim() || DEFAULT_USER_PROMPT;
     if (session.style) styleInput.value = session.style;
 
     if (session.activeImage?.dataUrl) {
