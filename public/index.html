@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Floorplan AI Edit Tool</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Private Utility</p>
+          <h1>Floorplan AI Edit Tool</h1>
+        </div>
+        <p class="subtitle">Upload a floorplan, drag a region, and replace only that selected area with AI.</p>
+      </header>
+
+      <main class="layout">
+        <section class="panel upload-panel">
+          <h2>1. Upload Plans</h2>
+          <label id="uploadDrop" class="upload-drop" for="fileInput">
+            <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple />
+            <span>Drop images or click to upload</span>
+          </label>
+          <div id="imageList" class="image-list"></div>
+        </section>
+
+        <section class="panel editor-panel">
+          <h2>2. Select Area</h2>
+          <p class="hint">Drag on the image to define the area to replace. You can redraw anytime.</p>
+          <div class="canvas-wrap">
+            <canvas id="editorCanvas"></canvas>
+          </div>
+          <div id="selectionMeta" class="selection-meta">No selection yet.</div>
+        </section>
+
+        <section class="panel controls-panel">
+          <h2>3. Interior Designer Control Center</h2>
+          <label class="field">
+            <span>Edit prompt (final instruction to image model)</span>
+            <textarea id="promptInput" rows="6" placeholder="Example: Replace this room with a Japandi style home office, light oak cabinetry, warm indirect lighting, and a built-in workstation."></textarea>
+          </label>
+
+          <div class="grid-2">
+            <label class="field">
+              <span>Generation Type</span>
+              <select id="generationTypeSelect">
+                <option value="layout" selected>1. Detailed top-down layout</option>
+                <option value="render">2. 3D design rendering</option>
+                <option value="angles">3. Multi-angle render set</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Perspective Count</span>
+              <select id="angleCountSelect">
+                <option value="3" selected>3 views</option>
+                <option value="4">4 views</option>
+                <option value="5">5 views</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="brief-grid">
+            <label class="field">
+              <span>Room Type</span>
+              <select id="roomTypeInput">
+                <option>Living Room</option>
+                <option>Master Bedroom</option>
+                <option>Bedroom</option>
+                <option>Kitchen</option>
+                <option>Dining</option>
+                <option>Bathroom</option>
+                <option>Study</option>
+                <option selected>General area</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Style Direction</span>
+              <select id="styleInput">
+                <option selected>Japandi</option>
+                <option>Scandinavian</option>
+                <option>Modern Minimalist</option>
+                <option>Contemporary Luxury</option>
+                <option>Mid-Century Modern</option>
+                <option>Wabi-Sabi</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Mood</span>
+              <input id="moodInput" value="Warm, minimal, calm" />
+            </label>
+            <label class="field">
+              <span>Budget Tier</span>
+              <select id="budgetInput">
+                <option>Low</option>
+                <option selected>Mid</option>
+                <option>High</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Household Profile</span>
+              <input id="householdInput" placeholder="e.g. Couple + toddler + helper" />
+            </label>
+            <label class="field">
+              <span>Vision Model</span>
+              <select id="visionModelSelect">
+                <option value="gpt-4.1" selected>gpt-4.1</option>
+                <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Must Keep (structural / fixed items)</span>
+            <textarea id="mustKeepInput" rows="3" placeholder="e.g. Keep all structural walls, windows, plumbing stack, foyer DB cabinet"></textarea>
+          </label>
+          <label class="field">
+            <span>Must Have</span>
+            <textarea id="mustHaveInput" rows="3" placeholder="e.g. Built-in storage wall, kid-safe rounded edges, compact study corner"></textarea>
+          </label>
+          <label class="field">
+            <span>Avoid</span>
+            <textarea id="avoidInput" rows="2" placeholder="e.g. No dark walnut, no bulky sofa, no enclosed kitchen"></textarea>
+          </label>
+
+          <div class="grid-2">
+            <label class="field">
+              <span>Image Edit Model</span>
+              <select id="modelSelect">
+                <option value="gpt-image-2" selected>gpt-image-2</option>
+                <option value="gpt-image-1.5">gpt-image-1.5</option>
+                <option value="gpt-image-1">gpt-image-1</option>
+                <option value="gpt-image-1-mini">gpt-image-1-mini</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Edit Mode</span>
+              <select id="actionSelect">
+                <option value="edit" selected>edit</option>
+                <option value="auto">auto</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid-2">
+            <label class="field">
+              <span>Quality</span>
+              <select id="qualitySelect">
+                <option value="high" selected>high</option>
+                <option value="medium">medium</option>
+                <option value="low">low</option>
+                <option value="auto">auto</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Size</span>
+              <select id="sizeSelect">
+                <option value="auto" selected>auto</option>
+                <option value="1536x1024">1536x1024</option>
+                <option value="1024x1024">1024x1024</option>
+                <option value="1024x1536">1024x1536</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Prompt-only Generation Model</span>
+            <select id="responsesModelSelect">
+              <option value="gpt-4.1-mini" selected>gpt-4.1-mini</option>
+              <option value="gpt-4.1">gpt-4.1</option>
+            </select>
+          </label>
+
+          <div class="actions">
+            <button id="runAnalyzeBtn">Analyze as ID (Vision)</button>
+            <button id="applySuggestionBtn" class="secondary" disabled>Use Suggested Prompt</button>
+            <button id="runEditBtn">Generate Edit</button>
+            <button id="runGenerateBtn">Generate New Image</button>
+            <button id="useResultBtn" class="secondary" disabled>Use Result as New Base</button>
+            <button id="downloadBtn" class="secondary" disabled>Download Result</button>
+          </div>
+
+          <pre id="analysisOutput" class="analysis-output">No AI analysis yet.</pre>
+          <p id="statusText" class="status">Ready.</p>
+        </section>
+      </main>
+
+      <section class="result-strip">
+        <article>
+          <h3>Base Image</h3>
+          <img id="basePreview" alt="Base plan preview" />
+        </article>
+        <article>
+          <h3>Edited Output</h3>
+          <img id="resultPreview" alt="Edited plan preview" />
+        </article>
+      </section>
+
+      <section class="result-gallery" id="resultGallery" aria-label="Generated output gallery"></section>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
