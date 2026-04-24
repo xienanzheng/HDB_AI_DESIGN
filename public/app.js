@@ -22,6 +22,11 @@ const resultGallery = document.getElementById("resultGallery");
 const ctx = editorCanvas.getContext("2d");
 const TEXT_MODEL = "gpt-4.1-mini";
 const DEFAULT_IMAGE_SIZE = "1024x1024";
+const TEMP_DB_NAME = "xies-id-temp-store";
+const TEMP_DB_VERSION = 1;
+const TEMP_STORE_NAME = "sessions";
+const TEMP_SESSION_KEY = "latest";
+const TEMP_TTL_MS = 24 * 60 * 60 * 1000;
 
 const DESIGN_RAG = {
   fixed:
@@ -72,6 +77,8 @@ const state = {
   busy: false
 };
 
+let tempSaveTimer = null;
+
 fileInput.addEventListener("change", handleFileInput);
 uploadDrop.addEventListener("dragover", (event) => {
   event.preventDefault();
@@ -88,6 +95,9 @@ downloadBtn.addEventListener("click", downloadResult);
 promptInput.addEventListener("input", updatePromptPreview);
 styleInput.addEventListener("change", updatePromptPreview);
 viewCountSelect.addEventListener("change", updatePromptPreview);
+promptInput.addEventListener("input", scheduleTempSave);
+styleInput.addEventListener("change", saveTempSession);
+viewCountSelect.addEventListener("change", saveTempSession);
 
 function setStatus(text) {
   statusText.textContent = text;
@@ -136,9 +146,10 @@ async function processFiles(files) {
   renderImageList();
 
   if (!state.activeImageId && state.images[0]) {
-    setActiveImage(state.images[0].id);
+    await setActiveImage(state.images[0].id);
   }
 
+  saveTempSession();
   setStatus("Images loaded.");
 }
 
@@ -171,7 +182,7 @@ function renderImageList() {
   }
 }
 
-async function setActiveImage(imageId) {
+async function setActiveImage(imageId, options = {}) {
   const item = state.images.find((x) => x.id === imageId);
   if (!item) return;
 
@@ -193,6 +204,9 @@ async function setActiveImage(imageId) {
 
   renderImageList();
   renderCanvas();
+  if (!options.skipSave) {
+    saveTempSession();
+  }
 }
 
 function renderCanvas() {
@@ -338,6 +352,7 @@ async function runImageEdit() {
 
   try {
     const maskDataUrl = createMaskFromSelection();
+    const imageDataUrl = createPngDataUrlFromActiveImage();
     const prompt = buildDesignerPrompt(rawPrompt, {
       viewText:
         "VIEW_SELECTED_EDIT: edit only the transparent masked selection. Blend with the surrounding plan/render and keep all unselected areas unchanged.",
@@ -345,7 +360,7 @@ async function runImageEdit() {
     });
 
     const payload = {
-      imageDataUrl: state.activeImageDataUrl,
+      imageDataUrl,
       maskDataUrl,
       prompt,
       model: modelSelect.value,
@@ -377,6 +392,7 @@ async function runImageEdit() {
     renderResultGallery(state.outputItems);
     useResultBtn.disabled = false;
     downloadBtn.disabled = false;
+    saveTempSession();
 
     if (data.revisedPrompt) {
       promptPreview.textContent = `Revised image prompt used by model:\n${data.revisedPrompt}`;
@@ -449,6 +465,7 @@ async function runPromptGeneration() {
     renderResultGallery(outputs);
     useResultBtn.disabled = false;
     downloadBtn.disabled = false;
+    saveTempSession();
     if (revisedPrompts.length) {
       promptPreview.textContent = `Revised image prompt used by model:\n${revisedPrompts.join("\n\n")}`;
     }
@@ -552,6 +569,16 @@ function createMaskFromSelection() {
   return c.toDataURL("image/png");
 }
 
+function createPngDataUrlFromActiveImage() {
+  const image = state.activeImageElement;
+  const c = document.createElement("canvas");
+  c.width = image.naturalWidth;
+  c.height = image.naturalHeight;
+  const cctx = c.getContext("2d");
+  cctx.drawImage(image, 0, 0);
+  return c.toDataURL("image/png");
+}
+
 async function useResultAsBase() {
   if (!state.outputDataUrl) return;
 
@@ -567,6 +594,7 @@ async function useResultAsBase() {
   state.images.unshift(item);
   renderImageList();
   await setActiveImage(item.id);
+  saveTempSession();
   setStatus("Result promoted to new base image.");
 }
 
@@ -585,6 +613,120 @@ function downloadResult() {
     a.download = `${slugify(item.title)}-${Date.now()}-${index + 1}.png`;
     a.click();
   }
+}
+
+function scheduleTempSave() {
+  window.clearTimeout(tempSaveTimer);
+  tempSaveTimer = window.setTimeout(saveTempSession, 600);
+}
+
+async function saveTempSession() {
+  if (!("indexedDB" in window)) return;
+
+  const activeImage = state.images.find((item) => item.id === state.activeImageId) || null;
+  if (!activeImage && !state.outputItems.length) return;
+
+  try {
+    const db = await openTempDb();
+    await idbPut(db, {
+      id: TEMP_SESSION_KEY,
+      timestamp: Date.now(),
+      prompt: promptInput.value,
+      style: styleInput.value,
+      viewCount: viewCountSelect.value,
+      activeImage,
+      outputDataUrl: state.outputDataUrl,
+      outputItems: state.outputItems
+    });
+    db.close();
+  } catch {
+    // Temporary storage is best-effort only.
+  }
+}
+
+async function restoreTempSession() {
+  if (!("indexedDB" in window)) return;
+
+  try {
+    const db = await openTempDb();
+    const session = await idbGet(db, TEMP_SESSION_KEY);
+
+    if (!session) {
+      db.close();
+      return;
+    }
+
+    if (Date.now() - Number(session.timestamp || 0) > TEMP_TTL_MS) {
+      await idbDelete(db, TEMP_SESSION_KEY);
+      db.close();
+      return;
+    }
+
+    promptInput.value = session.prompt || "";
+    if (session.style) styleInput.value = session.style;
+    if (session.viewCount) viewCountSelect.value = session.viewCount;
+
+    if (session.activeImage?.dataUrl) {
+      state.images = [session.activeImage];
+      renderImageList();
+      await setActiveImage(session.activeImage.id, { skipSave: true });
+    }
+
+    state.outputDataUrl = session.outputDataUrl || null;
+    state.outputItems = Array.isArray(session.outputItems) ? session.outputItems : [];
+    if (state.outputDataUrl) {
+      resultPreview.src = state.outputDataUrl;
+      useResultBtn.disabled = false;
+      downloadBtn.disabled = false;
+    }
+    renderResultGallery(state.outputItems);
+    updatePromptPreview();
+    setStatus("Restored temporary session from this browser.");
+    db.close();
+  } catch {
+    // Ignore temporary storage failures; generation still works normally.
+  }
+}
+
+function openTempDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(TEMP_DB_NAME, TEMP_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(TEMP_STORE_NAME)) {
+        db.createObjectStore(TEMP_STORE_NAME, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function idbPut(db, value) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(TEMP_STORE_NAME, "readwrite");
+    tx.objectStore(TEMP_STORE_NAME).put(value);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function idbGet(db, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(TEMP_STORE_NAME, "readonly");
+    const request = tx.objectStore(TEMP_STORE_NAME).get(key);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function idbDelete(db, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(TEMP_STORE_NAME, "readwrite");
+    tx.objectStore(TEMP_STORE_NAME).delete(key);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
 function getCanvasPoint(event) {
@@ -672,3 +814,4 @@ function dataUrlToImage(dataUrl) {
 clearCanvas();
 updatePromptPreview();
 setStatus("Upload a floorplan image to begin.");
+restoreTempSession();

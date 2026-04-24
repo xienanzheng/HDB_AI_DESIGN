@@ -12,6 +12,7 @@ const MAX_JSON_BODY_BYTES = 25 * 1024 * 1024;
 const DEFAULT_IMAGE_MODEL = "gpt-image-2";
 const DEFAULT_IMAGE_SIZE = "1024x1024";
 const SUPPORTED_IMAGE_SIZES = new Set(["1024x1024", "1536x1024", "1024x1536"]);
+const FALLBACK_IMAGE_MODEL = "gpt-image-1.5";
 
 loadEnv(path.join(__dirname, ".env"));
 
@@ -78,14 +79,17 @@ async function handleImageEdit(req, res) {
     return sendJson(res, 400, { error: error.message || "Invalid JSON body" });
   }
 
+  return handleImageEditWithBody(res, body, apiKey);
+}
+
+async function handleImageEditWithBody(res, body, apiKey) {
   const {
     imageDataUrl,
     maskDataUrl,
     prompt,
     model = DEFAULT_IMAGE_MODEL,
     quality = "high",
-    size = DEFAULT_IMAGE_SIZE,
-    action = "edit"
+    size = DEFAULT_IMAGE_SIZE
   } = body || {};
 
   if (!imageDataUrl || !maskDataUrl || !prompt) {
@@ -94,54 +98,61 @@ async function handleImageEdit(req, res) {
     });
   }
 
-  let responsesRes;
+  let imageFile;
+  let maskFile;
   try {
-    responsesRes = await fetch("https://api.openai.com/v1/responses", {
+    imageFile = dataUrlToFile(imageDataUrl, "image.png");
+    maskFile = dataUrlToFile(maskDataUrl, "mask.png");
+  } catch (error) {
+    return sendJson(res, 400, { error: error.message || "Invalid image data URL" });
+  }
+
+  const formData = new FormData();
+  formData.append("model", model);
+  formData.append("prompt", String(prompt));
+  formData.append("quality", quality);
+  formData.append("size", normalizeImageSize(size));
+  formData.append("image[]", imageFile.blob, imageFile.filename);
+  formData.append("mask", maskFile.blob, maskFile.filename);
+
+  let openaiRes;
+  try {
+    openaiRes = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${apiKey}`
       },
-      body: JSON.stringify({
-        model: "gpt-4.1",
-        input: [
-          {
-            role: "user",
-            content: [
-              { type: "input_text", text: String(prompt) },
-              { type: "input_image", image_url: imageDataUrl, detail: "high" }
-            ]
-          }
-        ],
-        tools: [buildImageTool({ model, action, quality, size, maskDataUrl })],
-        tool_choice: { type: "image_generation" }
-      })
+      body: formData
     });
   } catch {
     return sendJson(res, 502, { error: "Failed to reach OpenAI API" });
   }
 
-  const requestId = responsesRes.headers.get("x-request-id") || undefined;
-  const payload = await safeReadJson(responsesRes);
+  const requestId = openaiRes.headers.get("x-request-id") || undefined;
+  const payload = await safeReadJson(openaiRes);
 
-  if (!responsesRes.ok) {
+  if (!openaiRes.ok) {
+    if (shouldRetryWithFallbackImageModel(model, payload)) {
+      return handleImageEditWithBody(res, { ...body, model: FALLBACK_IMAGE_MODEL }, apiKey);
+    }
+
     const detail = payload?.error?.message || "OpenAI image edit request failed";
-    return sendJson(res, responsesRes.status, {
+    return sendJson(res, openaiRes.status, {
       error: detail,
       requestId
     });
   }
 
   try {
-    const imageCall = parseImageGenerationCall(payload);
+    const imageData = parseImagesApiResult(payload);
     return sendJson(res, 200, {
-      editedImageDataUrl: `data:image/png;base64,${imageCall.result}`,
-      revisedPrompt: imageCall.revised_prompt || null,
+      editedImageDataUrl: imageData,
+      revisedPrompt: null,
       requestId
     });
   } catch {
     return sendJson(res, 500, {
-      error: "OpenAI response did not include an image_generation result",
+      error: "OpenAI response did not include an edited image result",
       requestId
     });
   }
@@ -162,6 +173,10 @@ async function handleImageGenerate(req, res) {
     return sendJson(res, 400, { error: error.message || "Invalid JSON body" });
   }
 
+  return handleImageGenerateWithBody(res, body, apiKey);
+}
+
+async function handleImageGenerateWithBody(res, body, apiKey) {
   const {
     prompt,
     imageDataUrl,
@@ -206,6 +221,10 @@ async function handleImageGenerate(req, res) {
   const requestId = openaiRes.headers.get("x-request-id") || undefined;
   const payload = await safeReadJson(openaiRes);
   if (!openaiRes.ok) {
+    if (shouldRetryWithFallbackImageModel(imageModel, payload)) {
+      return handleImageGenerateWithBody(res, { ...body, imageModel: FALLBACK_IMAGE_MODEL }, apiKey);
+    }
+
     const detail = payload?.error?.message || "OpenAI image generation request failed";
     return sendJson(res, openaiRes.status, { error: detail, requestId });
   }
@@ -361,6 +380,42 @@ function buildImageTool({ model, action, quality, size, maskDataUrl }) {
 
 function normalizeImageSize(size) {
   return SUPPORTED_IMAGE_SIZES.has(size) ? size : DEFAULT_IMAGE_SIZE;
+}
+
+function shouldRetryWithFallbackImageModel(model, payload) {
+  if (!model || model === FALLBACK_IMAGE_MODEL) return false;
+  const message = String(payload?.error?.message || "").toLowerCase();
+  return (
+    message.includes("pattern") ||
+    message.includes("model") ||
+    message.includes("unsupported") ||
+    message.includes("not found")
+  );
+}
+
+function dataUrlToFile(dataUrl, filename) {
+  const match = /^data:([^;,]+);base64,(.+)$/s.exec(String(dataUrl || ""));
+  if (!match) {
+    throw new Error("Image data must be a base64 data URL");
+  }
+
+  const mimeType = match[1];
+  const buffer = Buffer.from(match[2], "base64");
+  return {
+    blob: new Blob([buffer], { type: mimeType }),
+    filename
+  };
+}
+
+function parseImagesApiResult(payload) {
+  const image = Array.isArray(payload?.data) ? payload.data[0] : null;
+  if (typeof image?.b64_json === "string") {
+    return `data:image/png;base64,${image.b64_json}`;
+  }
+  if (typeof image?.url === "string") {
+    return image.url;
+  }
+  throw new Error("No image data returned");
 }
 
 function extractResponseText(payload) {

@@ -11,8 +11,9 @@ A private interior-design copilot for floorplan rendering and selected-area edit
 - Generate a design set from the uploaded plan: top-down 2D layout, side/elevation 2D, whole-unit 3D, and perspective 3D renders.
 - Edit a selected area using the same prompt-first workflow.
 - Use a compact prompt/RAG layer that injects structural-preservation, dimension-fidelity, and fixture-dimension rules into every request.
+- Temporarily restore the latest browser session with IndexedDB storage for the active plan, prompt, and generated outputs.
 - Preserve structural columns, load-bearing walls, beams, shafts, windows, plumbing stacks, and AC ledge boundaries in every prompt.
-- Generate edits with Responses API `image_generation` + mask (default model: `gpt-image-2`).
+- Generate selected-area edits with the Image API edits endpoint and a transparent mask (default model: `gpt-image-2`, fallback: `gpt-image-1.5` if unavailable).
 - Promote an output image as the new base image and continue iterating.
 
 ## Setup
@@ -67,13 +68,14 @@ python3 scripts/responses_image_generate.py \
 - This version uses rectangular selections for speed and reliability.
 - Supported upload formats: PNG, JPG, WEBP.
 - `gpt-image-2` is used by default for edits and generation when available on your API account.
+- If the API rejects `gpt-image-2`, the server retries once with `gpt-image-1.5` to keep generation working.
 - Image size is set to `1024x1024` by default to avoid invalid image tool size errors.
 
 ## API route
 
 - `POST /api/edit`
-  - Body: `imageDataUrl`, `maskDataUrl`, `prompt`, `model`, `action`, `quality`, `size`
-  - Uses Responses API + `image_generation` tool with mask inpainting
+  - Body: `imageDataUrl`, `maskDataUrl`, `prompt`, `model`, `quality`, `size`
+  - Uses Image API edits with multipart image + mask
   - Returns: `{ editedImageDataUrl, revisedPrompt, requestId }`
 
 - `POST /api/generate`
