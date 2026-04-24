@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  getConfiguredImageModel,
   imageEdit,
   imageGenerate,
   interiorDesignerAssist,
@@ -36,7 +37,7 @@ const MIME_TYPES = {
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === "GET" && req.url === "/api/health") {
-      return sendJson(res, 200, { ok: true });
+      return sendJson(res, 200, { ok: true, imageModel: getConfiguredImageModel() });
     }
 
     if (req.method === "POST" && req.url === "/api/edit") {

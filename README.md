@@ -13,7 +13,7 @@ A private interior-design copilot for floorplan rendering and selected-area edit
 - Use a compact prompt/RAG layer that injects structural-preservation, dimension-fidelity, and fixture-dimension rules into every request.
 - Temporarily restore the latest browser session with IndexedDB storage for the active plan, prompt, and generated outputs.
 - Preserve structural columns, load-bearing walls, beams, shafts, windows, plumbing stacks, and AC ledge boundaries in every prompt.
-- Generate floorplan-based images and selected-area edits with the Image API edits endpoint (default model: `gpt-image-2`, with server fallback to `gpt-image-1.5` if OpenAI rejects the model).
+- Generate floorplan-based images and selected-area edits with the Image API edits endpoint (default model: `gpt-image-1.5`, with server fallback to `gpt-image-1` if OpenAI rejects the model).
 - Promote an output image as the new base image and continue iterating.
 
 ## Setup
@@ -23,7 +23,7 @@ A private interior-design copilot for floorplan rendering and selected-area edit
 
 ```bash
 OPENAI_API_KEY=sk-...
-OPENAI_IMAGE_MODEL=gpt-image-2
+OPENAI_IMAGE_MODEL=gpt-image-1.5
 # Optional only if OpenRouter planner support is added later.
 OPENROUTER_API_KEY=sk-or-...
 PORT=3000
@@ -49,7 +49,7 @@ vercel env add OPENAI_API_KEY
 vercel --prod
 ```
 
-If you connect the repo through the Vercel dashboard, set `OPENAI_API_KEY` and `OPENAI_IMAGE_MODEL=gpt-image-2` in Project Settings -> Environment Variables. If you later enable OpenRouter planning, also set `OPENROUTER_API_KEY` there. Vercel will serve `public/index.html` and the API routes in `api/`.
+If you connect the repo through the Vercel dashboard, set `OPENAI_API_KEY` and `OPENAI_IMAGE_MODEL=gpt-image-1.5` in Project Settings -> Environment Variables. If you later enable OpenRouter planning, also set `OPENROUTER_API_KEY` there. Vercel will serve `public/index.html` and the API routes in `api/`.
 
 Large floorplan screenshots can exceed hosted function body limits. If Vercel rejects a large upload, downscale/compress the image before sending it to the API.
 
@@ -61,7 +61,7 @@ If you also want the exact Python-style flow, use:
 python3 scripts/responses_image_generate.py \
   --prompt "Generate an image of gray tabby cat hugging an otter with an orange scarf" \
   --model gpt-4.1-mini \
-  --image-model gpt-image-2 \
+  --image-model gpt-image-1.5 \
   --out cat_and_otter.png
 ```
 
@@ -70,7 +70,8 @@ python3 scripts/responses_image_generate.py \
 - Mask behavior: the selected region is made transparent in the mask, so only that area is edited.
 - This version uses rectangular selections for speed and reliability.
 - Supported upload formats: PNG, JPG, WEBP.
-- `gpt-image-2` is used by default through `OPENAI_IMAGE_MODEL`. If OpenAI rejects that model for a request, the server retries once with `gpt-image-1.5` so Vercel does not fail with a model-pattern error.
+- `gpt-image-1.5` is used by default through `OPENAI_IMAGE_MODEL`. If OpenAI rejects that model for a request, the server retries once with `gpt-image-1`.
+- `gpt-image-2` and `gpt-image-2.0` are accepted as aliases and mapped to `gpt-image-1.5`.
 - Image size is set to `1024x1024` by default to avoid invalid image tool size errors.
 - OpenRouter is not required for image generation in the current app. Add `OPENROUTER_API_KEY` locally and in Vercel only if we add an OpenRouter-powered text/vision planning step.
 
@@ -90,3 +91,6 @@ python3 scripts/responses_image_generate.py \
   - Body: `imageDataUrl`, optional `selection`, and interior brief fields
   - Uses Responses API vision (`input_image`) to produce interior-design analysis + edit prompt
   - Returns: `{ analysisText, suggestedPrompt, requestId }`
+
+- `GET /api/health`
+  - Returns: `{ ok: true, imageModel }` for quick model verification in Vercel/local
