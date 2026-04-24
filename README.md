@@ -23,6 +23,8 @@ A private interior-design copilot for floorplan rendering and selected-area edit
 
 ```bash
 OPENAI_API_KEY=sk-...
+# Current documented default is gpt-image-1.5. Use gpt-image-2 only if your OpenAI account supports it.
+OPENAI_IMAGE_MODEL=gpt-image-1.5
 # Optional only if OpenRouter planner support is added later.
 OPENROUTER_API_KEY=sk-or-...
 PORT=3000
@@ -48,7 +50,7 @@ vercel env add OPENAI_API_KEY
 vercel --prod
 ```
 
-If you connect the repo through the Vercel dashboard, set `OPENAI_API_KEY` in Project Settings -> Environment Variables. If you later enable OpenRouter planning, also set `OPENROUTER_API_KEY` there. Vercel will serve `public/index.html` and the API routes in `api/`.
+If you connect the repo through the Vercel dashboard, set `OPENAI_API_KEY` in Project Settings -> Environment Variables. You can also set `OPENAI_IMAGE_MODEL` to override the image model, for example `gpt-image-2` if your OpenAI account supports it. If you later enable OpenRouter planning, also set `OPENROUTER_API_KEY` there. Vercel will serve `public/index.html` and the API routes in `api/`.
 
 Large floorplan screenshots can exceed hosted function body limits. If Vercel rejects a large upload, downscale/compress the image before sending it to the API.
 
@@ -69,7 +71,7 @@ python3 scripts/responses_image_generate.py \
 - Mask behavior: the selected region is made transparent in the mask, so only that area is edited.
 - This version uses rectangular selections for speed and reliability.
 - Supported upload formats: PNG, JPG, WEBP.
-- `gpt-image-1.5` is used by default because it is the current GPT Image model documented for the Image API.
+- `gpt-image-1.5` is used by default because it is the current GPT Image model documented for the Image API. Override with `OPENAI_IMAGE_MODEL=gpt-image-2` only if your account supports that model.
 - Image size is set to `1024x1024` by default to avoid invalid image tool size errors.
 - OpenRouter is not required for image generation in the current app. Add `OPENROUTER_API_KEY` locally and in Vercel only if we add an OpenRouter-powered text/vision planning step.
 

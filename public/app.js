@@ -18,7 +18,6 @@ const resultPreview = document.getElementById("resultPreview");
 const resultGallery = document.getElementById("resultGallery");
 
 const ctx = editorCanvas.getContext("2d");
-const IMAGE_MODEL = "gpt-image-1.5";
 const DEFAULT_IMAGE_SIZE = "1024x1024";
 const DEFAULT_USER_PROMPT = promptInput.value.trim();
 const TEMP_DB_NAME = "xies-id-temp-store";
@@ -345,7 +344,6 @@ async function runImageEdit() {
       imageDataUrl,
       maskDataUrl,
       prompt,
-      imageModel: IMAGE_MODEL,
       quality: qualitySelect.value,
       size: getImageSize()
     };
@@ -419,7 +417,6 @@ async function runPromptGeneration() {
         body: JSON.stringify({
           imageDataUrl: state.activeImageDataUrl,
           prompt: item.prompt,
-          imageModel: IMAGE_MODEL,
           quality: qualitySelect.value,
           size: getImageSize()
         })
@@ -498,7 +495,7 @@ function updatePromptPreview() {
     imageNote,
     `Style: ${styleInput.value}`,
     "Outputs: 2 images (2D layout + 3D render)",
-    "Model: GPT Image 1.5",
+    "Model: server image model (OPENAI_IMAGE_MODEL, default GPT Image 1.5)",
     "RAG layer: structural preservation + dimension fidelity + fixture dimension labels.",
     `Prompt: ${rawPrompt}`
   ].join("\n");
