@@ -1,17 +1,16 @@
-# Floorplan AI Edit Tool
+# Tengah Plantation Creek 5 Room Design
 
-A private interior-design copilot for floorplan/image edits using GPT Image + GPT Vision.
+A private interior-design copilot for floorplan rendering and selected-area edits using GPT Image.
 
 ## What it does
 
 - Upload one or more plan images.
 - Click an image to make it active.
 - Drag a rectangular region on the canvas to mark the exact area to replace.
-- Use the **Interior Designer brief** fields (room type, style, mood, budget, must-keep, must-have, avoid).
-- Run **Analyze as ID (Vision)** to get plan-specific observations, constraints, and a suggested edit prompt.
-- Generate detailed top-down layouts that rework furniture and non-structural partitions.
-- Generate 3D design renderings for styles such as Japandi, Scandinavian, Modern Minimalist, and Wabi-Sabi.
-- Generate a multi-angle set of perspective renders from the same design concept.
+- Write one prompt. Put constraints, needs, and avoids directly in that prompt.
+- Generate a design set from the uploaded plan: top-down 2D layout, side/elevation 2D, whole-unit 3D, and perspective 3D renders.
+- Edit a selected area using the same prompt-first workflow.
+- Use a compact prompt/RAG layer that injects structural-preservation, dimension-fidelity, and fixture-dimension rules into every request.
 - Preserve structural columns, load-bearing walls, beams, shafts, windows, plumbing stacks, and AC ledge boundaries in every prompt.
 - Generate edits with Responses API `image_generation` + mask (default model: `gpt-image-2`).
 - Promote an output image as the new base image and continue iterating.
@@ -68,7 +67,7 @@ python3 scripts/responses_image_generate.py \
 - This version uses rectangular selections for speed and reliability.
 - Supported upload formats: PNG, JPG, WEBP.
 - `gpt-image-2` is used by default for edits and generation when available on your API account.
-- The UI has three generation types: detailed top-down layout, 3D design rendering, and multi-angle render set.
+- Image size is set to `1024x1024` by default to avoid invalid image tool size errors.
 
 ## API route
 
@@ -78,7 +77,7 @@ python3 scripts/responses_image_generate.py \
   - Returns: `{ editedImageDataUrl, revisedPrompt, requestId }`
 
 - `POST /api/generate`
-  - Body: `prompt`, `model`, `imageModel`, `quality`, `size`
+  - Body: `prompt`, optional `imageDataUrl`, `model`, `imageModel`, `quality`, `size`
   - Uses Responses API with `tools: [{ type: "image_generation" }]`
   - Returns: `{ generatedImageDataUrl, revisedPrompt, requestId }`
 

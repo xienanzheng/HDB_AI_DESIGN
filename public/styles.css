@@ -220,6 +220,7 @@ h3 {
   min-height: min(680px, calc(100vh - 180px));
   border-radius: 8px;
   cursor: crosshair;
+  touch-action: none;
 }
 
 .controls-panel {
@@ -247,6 +248,12 @@ h3 {
 .field span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 textarea,
@@ -305,6 +312,10 @@ textarea {
   gap: 8px;
   padding-top: 10px;
   border-top: 1px solid var(--line);
+}
+
+.actions .primary {
+  grid-column: span 2;
 }
 
 button {
@@ -449,6 +460,10 @@ button:disabled {
   .brief-grid,
   .actions {
     grid-template-columns: 1fr;
+  }
+
+  .actions .primary {
+    grid-column: span 1;
   }
 
   .wide-field {

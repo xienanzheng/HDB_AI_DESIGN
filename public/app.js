@@ -4,35 +4,60 @@ const imageList = document.getElementById("imageList");
 const editorCanvas = document.getElementById("editorCanvas");
 const selectionMeta = document.getElementById("selectionMeta");
 const promptInput = document.getElementById("promptInput");
-const generationTypeSelect = document.getElementById("generationTypeSelect");
-const angleCountSelect = document.getElementById("angleCountSelect");
-const roomTypeInput = document.getElementById("roomTypeInput");
 const styleInput = document.getElementById("styleInput");
-const moodInput = document.getElementById("moodInput");
-const budgetInput = document.getElementById("budgetInput");
-const householdInput = document.getElementById("householdInput");
-const visionModelSelect = document.getElementById("visionModelSelect");
-const mustKeepInput = document.getElementById("mustKeepInput");
-const mustHaveInput = document.getElementById("mustHaveInput");
-const avoidInput = document.getElementById("avoidInput");
+const viewCountSelect = document.getElementById("viewCountSelect");
 const modelSelect = document.getElementById("modelSelect");
-const actionSelect = document.getElementById("actionSelect");
 const qualitySelect = document.getElementById("qualitySelect");
 const sizeSelect = document.getElementById("sizeSelect");
-const responsesModelSelect = document.getElementById("responsesModelSelect");
-const runAnalyzeBtn = document.getElementById("runAnalyzeBtn");
-const applySuggestionBtn = document.getElementById("applySuggestionBtn");
 const runEditBtn = document.getElementById("runEditBtn");
 const runGenerateBtn = document.getElementById("runGenerateBtn");
 const useResultBtn = document.getElementById("useResultBtn");
 const downloadBtn = document.getElementById("downloadBtn");
-const analysisOutput = document.getElementById("analysisOutput");
+const promptPreview = document.getElementById("promptPreview");
 const statusText = document.getElementById("statusText");
 const basePreview = document.getElementById("basePreview");
 const resultPreview = document.getElementById("resultPreview");
 const resultGallery = document.getElementById("resultGallery");
 
 const ctx = editorCanvas.getContext("2d");
+const TEXT_MODEL = "gpt-4.1-mini";
+const DEFAULT_IMAGE_SIZE = "1024x1024";
+
+const DESIGN_RAG = {
+  fixed:
+    "RAG_FIXED: preserve structural columns, structural/load-bearing walls, beams, household shelter, shafts, windows, facade edges, plumbing stacks, AC ledge, door/window openings, and all visible dimension lines. Never hack, move, hide, resize, or reinterpret structural columns.",
+  dimensions:
+    "RAG_DIMENSIONS: follow the uploaded floorplan geometry and dimensions strictly. Keep room locations, wall thickness intent, circulation, door swings, and scale. Label proposed fixtures/furniture with practical dimensions in mm. If a dimension is missing, infer realistic HDB-safe dimensions and label them as proposed.",
+  scope:
+    "RAG_SCOPE: only change loose furniture, built-ins, storage, finishes, lighting, styling, and non-structural partitions. Keep circulation practical and avoid blocking access paths.",
+  views: [
+    {
+      title: "Top-down 2D layout",
+      text:
+        "VIEW_TOPDOWN_2D: create a clean scaled top-down design layout over the plan. Show furniture, cabinetry, non-structural partitions, clear labels, and proposed dimensions."
+    },
+    {
+      title: "Side 2D elevation",
+      text:
+        "VIEW_SIDE_2D: create a side/elevation drawing for the most important wall or built-in run. Show cabinetry heights, depths, lighting positions, material callouts, and dimensions."
+    },
+    {
+      title: "3D whole-home render",
+      text:
+        "VIEW_3D_MAIN: create a polished 3D top-down/axonometric rendering of the whole unit so the layout and design language are easy to understand."
+    },
+    {
+      title: "3D living and dining view",
+      text:
+        "VIEW_3D_PUBLIC: create a realistic perspective rendering from the living/dining/foyer zone with materials, lighting, furniture, and built-ins."
+    },
+    {
+      title: "3D kitchen and bedroom detail",
+      text:
+        "VIEW_3D_DETAIL: create a realistic perspective rendering focusing on kitchen storage, bedroom storage, or the most design-critical detail."
+    }
+  ]
+};
 
 const state = {
   images: [],
@@ -44,7 +69,6 @@ const state = {
   viewRect: null,
   outputDataUrl: null,
   outputItems: [],
-  suggestedPrompt: "",
   busy: false
 };
 
@@ -54,15 +78,16 @@ uploadDrop.addEventListener("dragover", (event) => {
 });
 uploadDrop.addEventListener("drop", handleFileDrop);
 window.addEventListener("resize", renderCanvas);
-editorCanvas.addEventListener("mousedown", handleMouseDown);
-window.addEventListener("mousemove", handleMouseMove);
-window.addEventListener("mouseup", handleMouseUp);
-runAnalyzeBtn.addEventListener("click", runInteriorDesignerAssist);
-applySuggestionBtn.addEventListener("click", applySuggestedPrompt);
+editorCanvas.addEventListener("pointerdown", handlePointerDown);
+window.addEventListener("pointermove", handlePointerMove);
+window.addEventListener("pointerup", handlePointerUp);
 runEditBtn.addEventListener("click", runImageEdit);
 runGenerateBtn.addEventListener("click", runPromptGeneration);
 useResultBtn.addEventListener("click", useResultAsBase);
 downloadBtn.addEventListener("click", downloadResult);
+promptInput.addEventListener("input", updatePromptPreview);
+styleInput.addEventListener("change", updatePromptPreview);
+viewCountSelect.addEventListener("change", updatePromptPreview);
 
 function setStatus(text) {
   statusText.textContent = text;
@@ -70,8 +95,6 @@ function setStatus(text) {
 
 function setBusy(busy) {
   state.busy = busy;
-  runAnalyzeBtn.disabled = busy;
-  applySuggestionBtn.disabled = busy || !state.suggestedPrompt;
   runEditBtn.disabled = busy;
   runGenerateBtn.disabled = busy;
   fileInput.disabled = busy;
@@ -158,14 +181,12 @@ async function setActiveImage(imageId) {
   state.selection = null;
   state.outputDataUrl = null;
   state.outputItems = [];
-  state.suggestedPrompt = "";
 
   resultPreview.removeAttribute("src");
   renderResultGallery([]);
   useResultBtn.disabled = true;
   downloadBtn.disabled = true;
-  applySuggestionBtn.disabled = true;
-  analysisOutput.textContent = "No AI analysis yet.";
+  updatePromptPreview();
 
   basePreview.src = item.dataUrl;
   selectionMeta.textContent = "No selection yet.";
@@ -233,12 +254,14 @@ function clearCanvas() {
   ctx.fillRect(0, 0, cssWidth, cssHeight);
 }
 
-function handleMouseDown(event) {
+function handlePointerDown(event) {
   if (!state.activeImageElement || !state.viewRect) return;
 
+  event.preventDefault();
   const p = getCanvasPoint(event);
   if (!pointInRect(p.x, p.y, state.viewRect)) return;
 
+  editorCanvas.setPointerCapture?.(event.pointerId);
   state.dragStart = canvasToImagePoint(p.x, p.y);
   state.selection = {
     x: state.dragStart.x,
@@ -250,9 +273,10 @@ function handleMouseDown(event) {
   renderCanvas();
 }
 
-function handleMouseMove(event) {
+function handlePointerMove(event) {
   if (!state.dragStart || !state.activeImageElement) return;
 
+  event.preventDefault();
   const p = getCanvasPoint(event);
   const end = canvasToImagePoint(p.x, p.y);
 
@@ -261,9 +285,14 @@ function handleMouseMove(event) {
   renderCanvas();
 }
 
-function handleMouseUp() {
+function handlePointerUp(event) {
   if (!state.dragStart) return;
 
+  try {
+    editorCanvas.releasePointerCapture?.(event.pointerId);
+  } catch {
+    // Pointer may already be released when the drag ends outside the canvas.
+  }
   state.dragStart = null;
   if (!state.selection || state.selection.width < 8 || state.selection.height < 8) {
     state.selection = null;
@@ -310,8 +339,8 @@ async function runImageEdit() {
   try {
     const maskDataUrl = createMaskFromSelection();
     const prompt = buildDesignerPrompt(rawPrompt, {
-      generationType: generationTypeSelect.value,
-      angleLabel: "primary design view",
+      viewText:
+        "VIEW_SELECTED_EDIT: edit only the transparent masked selection. Blend with the surrounding plan/render and keep all unselected areas unchanged.",
       useSelection: true
     });
 
@@ -320,9 +349,8 @@ async function runImageEdit() {
       maskDataUrl,
       prompt,
       model: modelSelect.value,
-      action: actionSelect.value,
       quality: qualitySelect.value,
-      size: sizeSelect.value
+      size: getImageSize()
     };
 
     const response = await fetch("/api/edit", {
@@ -341,7 +369,7 @@ async function runImageEdit() {
     state.outputDataUrl = data.editedImageDataUrl;
     state.outputItems = [
       {
-        title: getGenerationTitle(generationTypeSelect.value, 1),
+        title: "Selected area edit",
         dataUrl: data.editedImageDataUrl
       }
     ];
@@ -351,7 +379,7 @@ async function runImageEdit() {
     downloadBtn.disabled = false;
 
     if (data.revisedPrompt) {
-      analysisOutput.textContent = `Revised image prompt used by model:\n${data.revisedPrompt}`;
+      promptPreview.textContent = `Revised image prompt used by model:\n${data.revisedPrompt}`;
     }
     setStatus(data.requestId ? `Edit generated. Request ID: ${data.requestId}` : "Edit generated.");
   } catch (error) {
@@ -364,6 +392,11 @@ async function runImageEdit() {
 async function runPromptGeneration() {
   if (state.busy) return;
 
+  if (!state.activeImageDataUrl) {
+    setStatus("Upload and select a floorplan image first.");
+    return;
+  }
+
   const rawPrompt = promptInput.value.trim();
   if (!rawPrompt) {
     setStatus("Write a prompt first.");
@@ -371,10 +404,10 @@ async function runPromptGeneration() {
   }
 
   setBusy(true);
-  setStatus("Generating image via Responses API...");
+  setStatus("Generating design set via Responses API...");
 
   try {
-    const prompts = buildGenerationPrompts(rawPrompt);
+    const prompts = buildDesignSetPrompts(rawPrompt);
     const outputs = [];
     const revisedPrompts = [];
 
@@ -386,11 +419,12 @@ async function runPromptGeneration() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
+          imageDataUrl: state.activeImageDataUrl,
           prompt: item.prompt,
-          model: responsesModelSelect.value,
+          model: TEXT_MODEL,
           imageModel: modelSelect.value,
           quality: qualitySelect.value,
-          size: sizeSelect.value
+          size: getImageSize()
         })
       });
 
@@ -416,7 +450,7 @@ async function runPromptGeneration() {
     useResultBtn.disabled = false;
     downloadBtn.disabled = false;
     if (revisedPrompts.length) {
-      analysisOutput.textContent = `Revised image prompt used by model:\n${revisedPrompts.join("\n\n")}`;
+      promptPreview.textContent = `Revised image prompt used by model:\n${revisedPrompts.join("\n\n")}`;
     }
 
     setStatus(
@@ -431,149 +465,50 @@ async function runPromptGeneration() {
   }
 }
 
-async function runInteriorDesignerAssist() {
-  if (state.busy) return;
-
-  if (!state.activeImageDataUrl) {
-    setStatus("Upload and select an image first.");
-    return;
-  }
-
-  setBusy(true);
-  setStatus("Analyzing image with GPT Vision for interior design recommendations...");
-
-  try {
-    const response = await fetch("/api/id-assist", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        imageDataUrl: state.activeImageDataUrl,
-        selection: state.selection,
-        roomType: roomTypeInput.value,
-        style: styleInput.value,
-        mood: moodInput.value,
-        budgetTier: budgetInput.value,
-        household: householdInput.value,
-        mustKeep: mustKeepInput.value,
-        mustHave: mustHaveInput.value,
-        avoid: avoidInput.value,
-        model: visionModelSelect.value
-      })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || "Vision analysis failed");
-    }
-
-    analysisOutput.textContent = data.analysisText || "No analysis content returned.";
-    state.suggestedPrompt = (data.suggestedPrompt || "").trim();
-    applySuggestionBtn.disabled = !state.suggestedPrompt;
-
-    setStatus(
-      data.requestId
-        ? `Interior design analysis completed. Request ID: ${data.requestId}`
-        : "Interior design analysis completed."
-    );
-  } catch (error) {
-    setStatus(`Error: ${error.message}`);
-  } finally {
-    setBusy(false);
-  }
-}
-
-function applySuggestedPrompt() {
-  if (!state.suggestedPrompt) return;
-  promptInput.value = state.suggestedPrompt;
-  setStatus("Suggested prompt applied. Review and run Generate Edit.");
-}
-
-function buildGenerationPrompts(rawPrompt) {
-  const type = generationTypeSelect.value;
-  if (type !== "angles") {
-    return [
-      {
-        title: getGenerationTitle(type, 1),
-        prompt: buildDesignerPrompt(rawPrompt, {
-          generationType: type,
-          angleLabel: type === "layout" ? "top-down plan view" : "hero 3D interior render"
-        })
-      }
-    ];
-  }
-
-  const count = Number(angleCountSelect.value || 3);
-  const angleLabels = [
-    "wide-angle living and dining perspective",
-    "kitchen and storage perspective",
-    "bedroom or private-zone perspective",
-    "entry foyer and circulation perspective",
-    "detail view of built-ins, materials, and lighting"
-  ];
-
-  return angleLabels.slice(0, count).map((angleLabel, index) => ({
-    title: getGenerationTitle(type, index + 1, angleLabel),
-    prompt: buildDesignerPrompt(rawPrompt, {
-      generationType: "angles",
-      angleLabel
-    })
+function buildDesignSetPrompts(rawPrompt) {
+  const count = Number(viewCountSelect.value || 5);
+  return DESIGN_RAG.views.slice(0, count).map((view) => ({
+    title: view.title,
+    prompt: buildDesignerPrompt(rawPrompt, { viewText: view.text })
   }));
 }
 
 function buildDesignerPrompt(rawPrompt, options = {}) {
-  const generationType = options.generationType || generationTypeSelect.value;
-  const modeText = getModePrompt(generationType, options.angleLabel);
-  const fixedConstraints = [
-    "Do not remove, hack, resize, shift, cover, or reinterpret structural columns.",
-    "Do not modify load-bearing walls, beams, shafts, windows, exterior facade edges, plumbing stacks, household shelter walls, or AC ledge boundaries.",
-    "Only reimagine non-structural partitions, loose furniture, built-ins, finishes, lighting, styling, and storage systems.",
-    "Keep circulation clear and practical; maintain door swings and safe access paths."
-  ].join(" ");
-
-  const clientBrief = [
-    `Room type: ${roomTypeInput.value}.`,
-    `Style: ${styleInput.value}.`,
-    `Mood: ${moodInput.value || "not specified"}.`,
-    `Budget: ${budgetInput.value}.`,
-    householdInput.value ? `Household: ${householdInput.value}.` : "",
-    mustKeepInput.value ? `User must keep: ${mustKeepInput.value}.` : "",
-    mustHaveInput.value ? `User must have: ${mustHaveInput.value}.` : "",
-    avoidInput.value ? `Avoid: ${avoidInput.value}.` : ""
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   const selectionText = options.useSelection
-    ? "Apply the change only inside the selected masked area; use surrounding image context for alignment."
-    : "Use the uploaded plan or prompt context as the design basis.";
+    ? "Selection rule: apply changes only inside the selected masked area; preserve every unmasked pixel as much as possible."
+    : "Image rule: use the uploaded floorplan as the source of truth for geometry, proportions, and fixed elements.";
 
   return [
-    modeText,
-    fixedConstraints,
-    clientBrief,
+    "You are an interior designer creating feasible HDB design visuals.",
+    options.viewText,
+    DESIGN_RAG.fixed,
+    DESIGN_RAG.dimensions,
+    DESIGN_RAG.scope,
+    `STYLE: ${styleInput.value}.`,
     selectionText,
-    `Designer instruction: ${rawPrompt}`
-  ].join("\n\n");
+    `USER_PROMPT: ${rawPrompt}`
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
-function getModePrompt(type, angleLabel = "") {
-  if (type === "layout") {
-    return "Create a detailed top-down interior layout visualization. Reimagine furniture placement, ergonomic clearances, storage, and non-structural partitions while preserving all fixed structural elements. Use clear plan readability, furniture labels where useful, and realistic proportions.";
-  }
-
-  if (type === "render") {
-    return "Create a polished 3D interior rendering image from the design concept. Show materials, lighting, furniture, built-ins, soft styling, and spatial atmosphere. Keep the design feasible according to the original floorplan.";
-  }
-
-  return `Create one 3D interior rendering from this camera/view: ${angleLabel}. The render must match the same design language and material palette as the main design concept.`;
+function updatePromptPreview() {
+  const rawPrompt = promptInput.value.trim() || "Write your design instruction here.";
+  const imageNote = state.activeImageDataUrl
+    ? "Active plan attached as visual context."
+    : "Upload a plan before generating.";
+  promptPreview.textContent = [
+    imageNote,
+    `Style: ${styleInput.value}`,
+    `Outputs: ${viewCountSelect.value} images`,
+    "RAG layer: structural preservation + dimension fidelity + fixture dimension labels.",
+    `Prompt: ${rawPrompt}`
+  ].join("\n");
 }
 
-function getGenerationTitle(type, index, angleLabel = "") {
-  if (type === "layout") return "Top-down layout";
-  if (type === "render") return "3D rendering";
-  return `Perspective ${index}${angleLabel ? ` - ${angleLabel}` : ""}`;
+function getImageSize() {
+  const supported = new Set(["1024x1024", "1536x1024", "1024x1536"]);
+  return supported.has(sizeSelect.value) ? sizeSelect.value : DEFAULT_IMAGE_SIZE;
 }
 
 function renderResultGallery(items) {
@@ -735,4 +670,5 @@ function dataUrlToImage(dataUrl) {
 }
 
 clearCanvas();
+updatePromptPreview();
 setStatus("Upload a floorplan image to begin.");

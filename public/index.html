@@ -10,7 +10,7 @@
     <div class="app-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Interior Design AI Studio</p>
+          <p class="eyebrow">Xie's Interior Design AI Studio</p>
           <h1>Tengah Plantation Creek 5 Room Design</h1>
         </div>
         <p id="statusText" class="status">Ready.</p>
@@ -18,9 +18,9 @@
 
       <nav class="workflow-strip" aria-label="Workflow">
         <span>Upload plan</span>
-        <span>Select area</span>
-        <span>Choose output</span>
-        <span>Generate</span>
+        <span>Write prompt</span>
+        <span>Generate views</span>
+        <span>Refine area</span>
       </nav>
 
       <main class="layout">
@@ -50,47 +50,12 @@
         <section class="panel controls-panel">
           <div class="panel-heading">
             <span class="step">03</span>
-            <h2>Generate</h2>
+            <h2>Design Brief</h2>
           </div>
 
           <div class="control-section">
-            <h3>Output</h3>
+            <h3>Essentials</h3>
             <div class="grid-2">
-              <label class="field">
-                <span>Type</span>
-                <select id="generationTypeSelect">
-                  <option value="layout" selected>Top-down layout</option>
-                  <option value="render">3D rendering</option>
-                  <option value="angles">Multi-angle set</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Views</span>
-                <select id="angleCountSelect">
-                  <option value="3" selected>3</option>
-                  <option value="4">4</option>
-                  <option value="5">5</option>
-                </select>
-              </label>
-            </div>
-          </div>
-
-          <div class="control-section">
-            <h3>Brief</h3>
-            <div class="brief-grid">
-              <label class="field">
-                <span>Room</span>
-                <select id="roomTypeInput">
-                  <option>Living Room</option>
-                  <option>Master Bedroom</option>
-                  <option>Bedroom</option>
-                  <option>Kitchen</option>
-                  <option>Dining</option>
-                  <option>Bathroom</option>
-                  <option>Study</option>
-                  <option selected>General area</option>
-                </select>
-              </label>
               <label class="field">
                 <span>Style</span>
                 <select id="styleInput">
@@ -100,49 +65,26 @@
                   <option>Contemporary Luxury</option>
                   <option>Mid-Century Modern</option>
                   <option>Wabi-Sabi</option>
+                  <option>Warm Neutral</option>
                 </select>
               </label>
               <label class="field">
-                <span>Mood</span>
-                <input id="moodInput" value="Warm, minimal, calm" />
-              </label>
-              <label class="field">
-                <span>Budget</span>
-                <select id="budgetInput">
-                  <option>Low</option>
-                  <option selected>Mid</option>
-                  <option>High</option>
+                <span>Images</span>
+                <select id="viewCountSelect">
+                  <option value="4">4</option>
+                  <option value="5" selected>5</option>
                 </select>
               </label>
             </div>
-            <label class="field">
-              <span>Household</span>
-              <input id="householdInput" placeholder="Couple + toddler + helper" />
-            </label>
-          </div>
-
-          <div class="control-section">
-            <h3>Constraints</h3>
-            <label class="field">
-              <span>Keep</span>
-              <textarea id="mustKeepInput" rows="2" placeholder="Structural walls, columns, windows, plumbing stack"></textarea>
-            </label>
-            <label class="field">
-              <span>Need</span>
-              <textarea id="mustHaveInput" rows="2" placeholder="Built-in storage, study corner, rounded edges"></textarea>
-            </label>
-            <label class="field">
-              <span>Avoid</span>
-              <textarea id="avoidInput" rows="2" placeholder="Dark palette, bulky sofa, enclosed kitchen"></textarea>
-            </label>
           </div>
 
           <div class="control-section">
             <h3>Prompt</h3>
             <label class="field">
               <span>Instruction</span>
-              <textarea id="promptInput" rows="5" placeholder="Create a calm Japandi living area with light oak built-ins, soft storage, warm lighting, and child-safe furniture."></textarea>
+              <textarea id="promptInput" rows="8" placeholder="Example: Reimagine this HDB 5-room layout for a young family. Keep all structural columns, household shelter, windows, plumbing stacks, and AC ledge unchanged. Need more concealed storage, safe rounded furniture, warm lighting, and a study nook. Avoid dark palette and hacking structural walls. Propose fixture dimensions when missing."></textarea>
             </label>
+            <p class="hint">Put all constraints inside the prompt. The app automatically preserves structural columns and fixed layout dimensions.</p>
           </div>
 
           <details class="advanced">
@@ -158,13 +100,6 @@
                 </select>
               </label>
               <label class="field">
-                <span>Edit</span>
-                <select id="actionSelect">
-                  <option value="edit" selected>edit</option>
-                  <option value="auto">auto</option>
-                </select>
-              </label>
-              <label class="field">
                 <span>Quality</span>
                 <select id="qualitySelect">
                   <option value="high" selected>high</option>
@@ -176,39 +111,22 @@
               <label class="field">
                 <span>Size</span>
                 <select id="sizeSelect">
-                  <option value="auto" selected>auto</option>
+                  <option value="1024x1024" selected>1024x1024</option>
                   <option value="1536x1024">1536x1024</option>
-                  <option value="1024x1024">1024x1024</option>
                   <option value="1024x1536">1024x1536</option>
-                </select>
-              </label>
-              <label class="field wide-field">
-                <span>Vision</span>
-                <select id="visionModelSelect">
-                  <option value="gpt-4.1" selected>gpt-4.1</option>
-                  <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-                </select>
-              </label>
-              <label class="field wide-field">
-                <span>Prompt model</span>
-                <select id="responsesModelSelect">
-                  <option value="gpt-4.1-mini" selected>gpt-4.1-mini</option>
-                  <option value="gpt-4.1">gpt-4.1</option>
                 </select>
               </label>
             </div>
           </details>
 
           <div class="actions">
-            <button id="runAnalyzeBtn" class="secondary">Analyze</button>
-            <button id="applySuggestionBtn" class="ghost" disabled>Use Prompt</button>
-            <button id="runEditBtn" class="primary">Edit Area</button>
-            <button id="runGenerateBtn" class="primary">Create Image</button>
+            <button id="runGenerateBtn" class="primary">Generate Design Set</button>
+            <button id="runEditBtn" class="secondary">Edit Selected Area</button>
             <button id="useResultBtn" class="secondary" disabled>Use Result as New Base</button>
             <button id="downloadBtn" class="secondary" disabled>Download</button>
           </div>
 
-          <pre id="analysisOutput" class="analysis-output">No AI analysis yet.</pre>
+          <pre id="promptPreview" class="analysis-output">Prompt layer ready. Upload a plan and describe what you want.</pre>
         </section>
       </main>
 
@@ -218,8 +136,8 @@
           <img id="basePreview" alt="Base plan preview" />
         </article>
         <article>
-          <h3>Edited Output</h3>
-          <img id="resultPreview" alt="Edited plan preview" />
+          <h3>Latest Output</h3>
+          <img id="resultPreview" alt="Generated design preview" />
         </article>
       </section>
 

@@ -10,6 +10,8 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 const DEFAULT_PORT = 3000;
 const MAX_JSON_BODY_BYTES = 25 * 1024 * 1024;
 const DEFAULT_IMAGE_MODEL = "gpt-image-2";
+const DEFAULT_IMAGE_SIZE = "1024x1024";
+const SUPPORTED_IMAGE_SIZES = new Set(["1024x1024", "1536x1024", "1024x1536"]);
 
 loadEnv(path.join(__dirname, ".env"));
 
@@ -82,7 +84,7 @@ async function handleImageEdit(req, res) {
     prompt,
     model = DEFAULT_IMAGE_MODEL,
     quality = "high",
-    size = "auto",
+    size = DEFAULT_IMAGE_SIZE,
     action = "edit"
   } = body || {};
 
@@ -162,10 +164,11 @@ async function handleImageGenerate(req, res) {
 
   const {
     prompt,
+    imageDataUrl,
     model = "gpt-4.1-mini",
     imageModel = DEFAULT_IMAGE_MODEL,
     quality = "high",
-    size = "auto"
+    size = DEFAULT_IMAGE_SIZE
   } = body || {};
   if (!prompt) {
     return sendJson(res, 400, { error: "prompt is required" });
@@ -181,7 +184,17 @@ async function handleImageGenerate(req, res) {
       },
       body: JSON.stringify({
         model,
-        input: String(prompt),
+        input: imageDataUrl
+          ? [
+              {
+                role: "user",
+                content: [
+                  { type: "input_text", text: String(prompt) },
+                  { type: "input_image", image_url: imageDataUrl, detail: "high" }
+                ]
+              }
+            ]
+          : String(prompt),
         tools: [buildImageTool({ model: imageModel, action: "generate", quality, size })],
         tool_choice: { type: "image_generation" }
       })
@@ -330,7 +343,7 @@ function buildImageTool({ model, action, quality, size, maskDataUrl }) {
     type: "image_generation",
     model,
     quality,
-    size
+    size: normalizeImageSize(size)
   };
 
   if ((model === "gpt-image-1.5" || model === "chatgpt-image-latest") && action) {
@@ -344,6 +357,10 @@ function buildImageTool({ model, action, quality, size, maskDataUrl }) {
   }
 
   return tool;
+}
+
+function normalizeImageSize(size) {
+  return SUPPORTED_IMAGE_SIZES.has(size) ? size : DEFAULT_IMAGE_SIZE;
 }
 
 function extractResponseText(payload) {
